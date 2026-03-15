@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ElfShark Shop</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        :root {
+            --bg-color: var(--tg-theme-bg-color, #1c1c1e);
+            --text-color: var(--tg-theme-text-color, #ffffff);
+            --button-color: var(--tg-theme-button-color, #3390ec);
+            --button-text: var(--tg-theme-button-text-color, #ffffff);
+            --secondary-bg: #2c2c2e;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 40px;
+            margin-bottom: 10px;
+            display: block;
+            text-align: center;
+        }
+
+        .product-card {
+            background-color: var(--secondary-bg);
+            border-radius: 15px;
+            padding: 15px;
+            width: 100%;
+            max-width: 350px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .product-img {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            background-color: #000;
+        }
+
+        .product-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .product-price {
+            color: #4cd964;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+
+        .product-stock {
+            font-size: 12px;
+            color: #8e8e93;
+            margin-bottom: 10px;
+        }
+
+        .buy-btn {
+            background-color: var(--button-color);
+            color: var(--button-text);
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: opacity 0.2s;
+        }
+
+        .buy-btn:active {
+            opacity: 0.8;
+        }
+
+        .buy-btn:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+
+<body>
+
+    <span class="logo">🦈</span>
+    <h1>ElfShark</h1>
+    <div id="catalog">
+        <!-- Товары будут загружены здесь -->
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+
+        // Данные товаров (В реальном проекте это должно приходить fetch-запросом от бота)
+        // Для простоты дублируем структуру из БД
+        const products = [
+            { id: 1, name: 'ElfBar 5000', price: '1200₽', img: 'https://via.placeholder.com/300/3390ec/ffffff?text=ElfBar', stock: 10 },
+            { id: 2, name: 'Lost Mary 4000', price: '1100₽', img: 'https://via.placeholder.com/300/ff3333/ffffff?text=LostMary', stock: 5 },
+            { id: 3, name: 'HQD Cuvie', price: '900₽', img: 'https://via.placeholder.com/300/33ff33/ffffff?text=HQD', stock: 20 },
+        ];
+
+        const catalogDiv = document.getElementById('catalog');
+
+        products.forEach(prod => {
+            const card = document.createElement('div');
+            card.className = 'product-card';
+
+            const isAvailable = prod.stock > 0;
+            const btnText = isAvailable ? 'Купить' : 'Нет в наличии';
+            const btnDisabled = !isAvailable ? 'disabled' : '';
+
+            card.innerHTML = `
+                <img src="${prod.img}" class="product-img" alt="${prod.name}">
+                <div class="product-title">${prod.name}</div>
+                <div class="product-price">${prod.price}</div>
+                <div class="product-stock">В наличии: ${prod.stock} шт.</div>
+                <button class="buy-btn" ${btnDisabled} onclick="orderProduct('${prod.name}', '${prod.price}')">
+                    ${btnText}
+                </button>
+            `;
+            catalogDiv.appendChild(card);
+        });
+
+        function orderProduct(name, price) {
+            // Вибрация при нажатии
+            tg.HapticFeedback.impactOccurred('light');
+
+            // Формируем данные для отправки боту
+            const data = JSON.stringify({
+                product_name: name,
+                price: price
+            });
+
+            // Отправляем данные боту и закрываем приложение
+            tg.sendData(data);
+        }
+    </script>
+</body>
+
+</html>
