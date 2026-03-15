@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🦈 ElfShark</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+
+<body>
+    <!-- Age Modal -->
+    <div id="ageModal" class="modal active">
+        <div class="modal-content">
+            <h2>🔞 Verify Your Age</h2>
+            <p>Вам должно быть 18+ для входа</p>
+            <div class="modal-buttons">
+                <button class="btn btn-secondary" onclick="rejectAge()">Нет, мне меньше 18</button>
+                <button class="btn btn-primary" onclick="confirmAge()">Да, мне 18+</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Welcome Modal -->
+    <div id="welcomeModal" class="modal">
+        <div class="modal-content">
+            <h1>🦈 ElfShark</h1>
+            <p>Добро пожаловать!</p>
+
+            <div class="settings-section">
+                <h3>🌍 Язык / Language:</h3>
+                <div class="language-list">
+                    <button class="lang-btn active" data-lang="ru">🇷🇺 Русский</button>
+                    <button class="lang-btn" data-lang="en">🇬🇧 English</button>
+                    <button class="lang-btn" data-lang="uk">🇺🇦 Українська</button>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h3>💱 Валюта:</h3>
+                <div class="currency-list">
+                    <button class="currency-btn active" data-currency="RUB">₽ RUB</button>
+                    <button class="currency-btn" data-currency="UAH">₴ UAH</button>
+                    <button class="currency-btn" data-currency="USD">$ USD</button>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h3>🎨 Тема:</h3>
+                <div class="theme-toggle">
+                    <span>☀️</span>
+                    <label class="switch">
+                        <input type="checkbox" id="themeSwitch" checked>
+                        <span class="slider"></span>
+                    </label>
+                    <span>🌙</span>
+                </div>
+            </div>
+
+            <button class="btn btn-primary btn-large" onclick="goToShop()">Перейти в магазин →</button>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="mainApp" class="app" style="display: none;">
+        <header class="header">
+            <h1>🦈 ElfShark</h1>
+            <button class="settings-btn" onclick="openSettings()">⚙️</button>
+        </header>
+
+        <!-- Settings Panel -->
+        <div id="settingsPanel" class="settings-panel" style="display: none;">
+            <div class="settings-content">
+                <h3>⚙️ Настройки</h3>
+
+                <div class="setting-item">
+                    <label>🌍 Язык:</label>
+                    <select id="settingsLang" onchange="changeLanguage(this.value)">
+                        <option value="ru">🇷🇺 Русский</option>
+                        <option value="en">🇬🇧 English</option>
+                        <option value="uk">🇺🇦 Українська</option>
+                    </select>
+                </div>
+
+                <div class="setting-item">
+                    <label>💱 Валюта:</label>
+                    <select id="settingsCurrency" onchange="changeCurrency(this.value)">
+                        <option value="RUB">₽ RUB</option>
+                        <option value="UAH">₴ UAH</option>
+                        <option value="USD">$ USD</option>
+                    </select>
+                </div>
+
+                <div class="setting-item">
+                    <label>🎨 Тема:</label>
+                    <select id="settingsTheme" onchange="changeTheme(this.value)">
+                        <option value="dark">🌙 Тёмная</option>
+                        <option value="light">☀️ Светлая</option>
+                    </select>
+                </div>
+
+                <button class="btn btn-secondary btn-full" onclick="closeSettings()">Закрыть</button>
+            </div>
+        </div>
+
+        <div id="catalogTab" class="tab-content active">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="🔍 Поиск товаров..." oninput="searchProducts()">
+            </div>
+
+            <div class="categories-section">
+                <h2>📁 Категории</h2>
+                <div class="categories-grid" id="categoriesGrid"></div>
+            </div>
+
+            <div class="products-section">
+                <div class="section-header">
+                    <h2 id="productsTitle">🔥 Все товары</h2>
+                    <span id="productsCount">0 товаров</span>
+                </div>
+
+                <div class="products-grid" id="productsGrid">
+                    <div class="loading">Загрузка...</div>
+                </div>
+
+                <div class="empty-state" id="emptyProducts" style="display: none;">
+                    <p>Товары не найдены</p>
+                </div>
+            </div>
+        </div>
+
+        <nav class="bottom-nav">
+            <button class="nav-item active">
+                <span class="nav-icon">🏠</span>
+                <span class="nav-label">Каталог</span>
+            </button>
+            <button class="nav-item" onclick="openCart()">
+                <span class="nav-icon">🛒</span>
+                <span class="nav-label">Корзина</span>
+                <span class="cart-badge" id="cartBadge">0</span>
+            </button>
+        </nav>
+    </div>
+
+    <!-- Cart Modal -->
+    <div id="cartModal" class="modal">
+        <div class="modal-content">
+            <h2>🛒 Корзина</h2>
+            <div id="cartItems"></div>
+            <div class="cart-total">
+                <span>Итого:</span>
+                <span id="cartTotal">0 ₽</span>
+            </div>
+            <div class="modal-buttons">
+                <button class="btn btn-secondary" onclick="closeCart()">Продолжить</button>
+                <button class="btn btn-primary" onclick="checkout()">Оформить заказ</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+
+</html>
