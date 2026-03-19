@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  bot:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - TOKEN=your_bot_token_here
+      - ADMIN_IDS=648491131
+      - MANAGER_ID=648491131
+      - MANAGER_USERNAME=@sharkbet12
+      - WEBAPP_URL=http://localhost:8080
+      - DEFAULT_CURRENCY=USD
+    volumes:
+      - ./data:/app/data

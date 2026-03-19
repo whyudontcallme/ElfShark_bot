@@ -8,3 +8,6 @@ venv/
 .vscode/
 .idea/
 *.xlsx
+-/
+data/
+*.log
