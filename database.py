@@ -1,6 +1,7 @@
 # database.py
 import sqlite3
 import json
+import re
 from typing import List, Dict, Optional
 
 class Database:
@@ -26,6 +27,37 @@ class Database:
             username TEXT, full_name TEXT, products_json TEXT NOT NULL,
             total_amount REAL NOT NULL, status TEXT DEFAULT 'new',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+
+        # Favorites: store user favorites for products
+        cursor.execute('''CREATE TABLE IF NOT EXISTS favorites (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER DEFAULT 0,
+            username TEXT DEFAULT '',
+            product_code TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, username, product_code)
+        )''')
+
+        # Watchlist for flavors: users can register a query_text (flavor name) to be notified when matching product appears
+        cursor.execute('''CREATE TABLE IF NOT EXISTS flavor_watches (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER DEFAULT 0,
+            username TEXT DEFAULT '',
+            query_text TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, username, query_text)
+        )''')
+
+        # Users table: store linked Telegram users for reliable notifications
+        cursor.execute('''CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tg_id INTEGER UNIQUE,
+            username TEXT,
+            first_name TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+
+    # (subscriptions removed — not used in this app)
         
         conn.commit()
         conn.close()
@@ -37,12 +69,12 @@ class Database:
         
         cursor.execute('DELETE FROM products')
         cursor.execute('DELETE FROM categories')
-        
+
         categories = [
-            (1, '💧 Жидкости', '💧', 1),
-            (2, '🔌 POD-системы', '🔌', 2),
-            (3, '🚬 Одноразки', '🚬', 3),
-            (4, '🏷️ Скидочные', '🏷️', 4),
+            (1, 'Одноразки', '', 1),
+            (2, 'Жидкости', '', 2),
+            (3, 'POD-системы', '', 3),
+            (4, 'Картриджи', '', 4),
         ]
         
         for cat in categories:
@@ -51,11 +83,27 @@ class Database:
         products = self._get_all_products()
         
         for prod in products:
+            name = prod['name'].lower()
+            cat = prod['category']
+            
+            # Refined categorization logic
+            if any(k in name for k in ['elfliq', 'chaser', 'hqd 5% 30ml', 'puffy liquid', 'sour king', 'zest suit']):
+                cat = 'Жидкости'
+            elif any(k in name for k in ['cartridge', 'cart 3pcs', 'cart 2pcs', 'corex', 'xlim go 2']):
+                cat = 'Картриджи'
+            elif any(k in name for k in ['pod x3', 'pod x2']):
+                cat = 'POD-системы'
+            elif any(k in name for k in ['bc10000', 'bc 45000', 'gh 33000', 'ice king', 'rave 40000', 'vista 40000', 'gear 50000', 'elf bar', 'raya d3', 'nic king', 'sweet king', 'moonnight', 'vozol prime']):
+                cat = 'Одноразки'
+            else:
+                # Default to POD systems for kits and devices
+                cat = 'POD-системы'
+                
             try:
                 cursor.execute('''INSERT OR REPLACE INTO products 
                     (code, name, category, subcategory, brand, price, stock)
                     VALUES (?, ?, ?, ?, ?, ?, ?)''',
-                    (prod['code'], prod['name'], prod['category'],
+                    (prod['code'], prod['name'], cat,
                      prod['subcategory'], prod['brand'], prod['price'], prod['stock']))
             except Exception as e:
                 print(f"⚠️ Ошибка {prod['code']}: {e}")
@@ -120,31 +168,31 @@ class Database:
             {'code': '01583', 'name': 'PUFFY LIQUID 5% (Pineapple coconut)', 'category': 'Жидкости', 'subcategory': 'PUFFY', 'brand': 'Puffy', 'price': 790, 'stock': 80},
             {'code': '01584', 'name': 'PUFFY LIQUID 5% (Strawberry energy watermelon)', 'category': 'Жидкости', 'subcategory': 'PUFFY', 'brand': 'Puffy', 'price': 790, 'stock': 71},
             {'code': '01585', 'name': 'PUFFY LIQUID 5% (Watermelon Bubble gum)', 'category': 'Жидкости', 'subcategory': 'PUFFY', 'brand': 'Puffy', 'price': 790, 'stock': 87},
-            {'code': '01290', 'name': 'Vozol Prime (Berry)', 'category': 'Жидкости', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 85},
-            {'code': '01299', 'name': 'Vozol Prime (Berry Peach)', 'category': 'Жидкости', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 90},
-            {'code': '01288', 'name': 'Vozol Prime (Blueberry Ice)', 'category': 'Жидкости', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 98},
-            {'code': '01276', 'name': 'Vozol Prime (Blueberry Razz Lemon)', 'category': 'Жидкости', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 91},
-            {'code': '01296', 'name': 'Vozol Prime (Blueberry watermelon)', 'category': 'Жидкости', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 88},
-            {'code': '01300', 'name': 'Vozol Prime (Cherry Cola)', 'category': 'Жидкости', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 97},
-            {'code': '01282', 'name': 'Vozol Prime (Dragon Fruit Banana Cherry)', 'category': 'Жидкости', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 69},
-            {'code': '01274', 'name': 'Vozol Prime (Grape Ice)', 'category': 'Жидкости', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 65},
-            {'code': '01277', 'name': 'Vozol Prime (Kiwi Passion Fruite Guava)', 'category': 'Жидкости', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 91},
-            {'code': '01287', 'name': 'Vozol Prime (LavaFire)', 'category': 'Жидкости', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 89},
-            {'code': '01284', 'name': 'Vozol Prime (Lemon Lime)', 'category': 'Жидкости', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 109},
-            {'code': '01301', 'name': 'Vozol Prime (Love 777)', 'category': 'Жидкости', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 74},
-            {'code': '01285', 'name': 'Vozol Prime (Mint ice)', 'category': 'Жидкости', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 101},
-            {'code': '01283', 'name': 'Vozol Prime (Mixed Berries)', 'category': 'Жидкости', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 94},
-            {'code': '01294', 'name': 'Vozol Prime (Peach Ice)', 'category': 'Жидкости', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 83},
-            {'code': '01295', 'name': 'Vozol Prime (Perfume Lemon)', 'category': 'Жидкости', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 78},
-            {'code': '01292', 'name': 'Vozol Prime (Pineapple Passion Fruit Lime)', 'category': 'Жидкости', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 71},
-            {'code': '01298', 'name': 'Vozol Prime (Pomegranate lemonade)', 'category': 'Жидкости', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 75},
-            {'code': '01286', 'name': 'Vozol Prime (Purple candy)', 'category': 'Жидкости', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 87},
-            {'code': '01280', 'name': 'Vozol Prime (Sour Apple Ice)', 'category': 'Жидкости', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 80},
-            {'code': '01279', 'name': 'Vozol Prime (Strawberry Ice cream)', 'category': 'Жидкости', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 73},
-            {'code': '01293', 'name': 'Vozol Prime (Strawberry Kiwi)', 'category': 'Жидкости', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 98},
-            {'code': '01297', 'name': 'Vozol Prime (Strawberry Watermelon)', 'category': 'Жидкости', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 105},
-            {'code': '01281', 'name': 'Vozol Prime (Watermelon Bubble Gum)', 'category': 'Жидкости', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 68},
-            {'code': '01275', 'name': 'Vozol Prime (Watermelon Ice)', 'category': 'Жидкости', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 84},
+            {'code': '01290', 'name': 'Vozol Prime (Berry)', 'category': 'Одноразки', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 85},
+            {'code': '01299', 'name': 'Vozol Prime (Berry Peach)', 'category': 'Одноразки', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 90},
+            {'code': '01288', 'name': 'Vozol Prime (Blueberry Ice)', 'category': 'Одноразки', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 98},
+            {'code': '01276', 'name': 'Vozol Prime (Blueberry Razz Lemon)', 'category': 'Одноразки', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 91},
+            {'code': '01296', 'name': 'Vozol Prime (Blueberry watermelon)', 'category': 'Одноразки', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 88},
+            {'code': '01300', 'name': 'Vozol Prime (Cherry Cola)', 'category': 'Одноразки', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 97},
+            {'code': '01282', 'name': 'Vozol Prime (Dragon Fruit Banana Cherry)', 'category': 'Одноразки', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 69},
+            {'code': '01274', 'name': 'Vozol Prime (Grape Ice)', 'category': 'Одноразки', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 65},
+            {'code': '01277', 'name': 'Vozol Prime (Kiwi Passion Fruite Guava)', 'category': 'Одноразки', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 91},
+            {'code': '01287', 'name': 'Vozol Prime (LavaFire)', 'category': 'Одноразки', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 89},
+            {'code': '01284', 'name': 'Vozol Prime (Lemon Lime)', 'category': 'Одноразки', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 109},
+            {'code': '01301', 'name': 'Vozol Prime (Love 777)', 'category': 'Одноразки', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 74},
+            {'code': '01285', 'name': 'Vozol Prime (Mint ice)', 'category': 'Одноразки', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 101},
+            {'code': '01283', 'name': 'Vozol Prime (Mixed Berries)', 'category': 'Одноразки', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 94},
+            {'code': '01294', 'name': 'Vozol Prime (Peach Ice)', 'category': 'Одноразки', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 83},
+            {'code': '01295', 'name': 'Vozol Prime (Perfume Lemon)', 'category': 'Одноразки', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 78},
+            {'code': '01292', 'name': 'Vozol Prime (Pineapple Passion Fruit Lime)', 'category': 'Одноразки', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 71},
+            {'code': '01298', 'name': 'Vozol Prime (Pomegranate lemonade)', 'category': 'Одноразки', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 75},
+            {'code': '01286', 'name': 'Vozol Prime (Purple candy)', 'category': 'Одноразки', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 87},
+            {'code': '01280', 'name': 'Vozol Prime (Sour Apple Ice)', 'category': 'Одноразки', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 80},
+            {'code': '01279', 'name': 'Vozol Prime (Strawberry Ice cream)', 'category': 'Одноразки', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 73},
+            {'code': '01293', 'name': 'Vozol Prime (Strawberry Kiwi)', 'category': 'Одноразки', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 98},
+            {'code': '01297', 'name': 'Vozol Prime (Strawberry Watermelon)', 'category': 'Одноразки', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 105},
+            {'code': '01281', 'name': 'Vozol Prime (Watermelon Bubble Gum)', 'category': 'Одноразки', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 68},
+            {'code': '01275', 'name': 'Vozol Prime (Watermelon Ice)', 'category': 'Одноразки', 'subcategory': 'Vozol Prime', 'brand': 'Vozol', 'price': 950, 'stock': 84},
         ]
         
         # ===== POD-СИСТЕМЫ =====
@@ -155,8 +203,8 @@ class Database:
             {'code': '01144', 'name': 'ELFBAR ELFX (Pink)', 'category': 'POD-системы', 'subcategory': 'ELF X', 'brand': 'ElfBar', 'price': 1490, 'stock': 7},
             {'code': '01145', 'name': 'ELFBAR ELFX (Purple)', 'category': 'POD-системы', 'subcategory': 'ELF X', 'brand': 'ElfBar', 'price': 1490, 'stock': 11},
             {'code': '00441', 'name': 'ELFBAR ELFX (Silver)', 'category': 'POD-системы', 'subcategory': 'ELF X', 'brand': 'ElfBar', 'price': 1490, 'stock': 3},
-            {'code': '00437', 'name': 'ELFBAR ELFX Pod x3 (0.6)', 'category': 'POD-системы', 'subcategory': 'ELF X', 'brand': 'ElfBar', 'price': 590, 'stock': 129},
-            {'code': '00438', 'name': 'ELFBAR ELFX Pod x3 (0.8)', 'category': 'POD-системы', 'subcategory': 'ELF X', 'brand': 'ElfBar', 'price': 590, 'stock': 123},
+            {'code': '00437', 'name': 'ELFBAR ELFX Pod x3 (0.6)', 'category': 'Одноразки', 'subcategory': 'ELF X', 'brand': 'ElfBar', 'price': 590, 'stock': 129},
+            {'code': '00438', 'name': 'ELFBAR ELFX Pod x3 (0.8)', 'category': 'Одноразки', 'subcategory': 'ELF X', 'brand': 'ElfBar', 'price': 590, 'stock': 123},
             {'code': '01351', 'name': 'ELFBAR ELFX MINI Kit (Black)', 'category': 'POD-системы', 'subcategory': 'ELF X MINI', 'brand': 'ElfBar', 'price': 1290, 'stock': 45},
             {'code': '01358', 'name': 'ELFBAR ELFX MINI Kit (Gold)', 'category': 'POD-системы', 'subcategory': 'ELF X MINI', 'brand': 'ElfBar', 'price': 1290, 'stock': 6},
             {'code': '01356', 'name': 'ELFBAR ELFX MINI Kit (Lilac)', 'category': 'POD-системы', 'subcategory': 'ELF X MINI', 'brand': 'ElfBar', 'price': 1290, 'stock': 5},
@@ -174,13 +222,13 @@ class Database:
             {'code': '00953', 'name': 'HQD Zest cart 3pcs (0.8)', 'category': 'POD-системы', 'subcategory': 'HQD', 'brand': 'HQD', 'price': 450, 'stock': 30},
             {'code': '00950', 'name': 'HQD Cirak cart 2pcs (0.9)', 'category': 'POD-системы', 'subcategory': 'HQD', 'brand': 'HQD', 'price': 390, 'stock': 34},
             {'code': '00951', 'name': 'HQD Cirak cart 2pcs (1.25)', 'category': 'POD-системы', 'subcategory': 'HQD', 'brand': 'HQD', 'price': 390, 'stock': 41},
-            {'code': '01506', 'name': 'HQD Zest Suit (Blue green)', 'category': 'POD-системы', 'subcategory': 'HQD', 'brand': 'HQD', 'price': 1190, 'stock': 5},
-            {'code': '00940', 'name': 'HQD Zest Suit (Blue pink)', 'category': 'POD-системы', 'subcategory': 'HQD', 'brand': 'HQD', 'price': 1190, 'stock': 5},
-            {'code': '01507', 'name': 'HQD Zest Suit (Green purple)', 'category': 'POD-системы', 'subcategory': 'HQD', 'brand': 'HQD', 'price': 1190, 'stock': 5},
-            {'code': '01508', 'name': 'HQD Zest Suit (Green white)', 'category': 'POD-системы', 'subcategory': 'HQD', 'brand': 'HQD', 'price': 1190, 'stock': 5},
-            {'code': '00942', 'name': 'HQD Zest Suit (Marble green)', 'category': 'POD-системы', 'subcategory': 'HQD', 'brand': 'HQD', 'price': 1190, 'stock': 30},
-            {'code': '01589', 'name': 'OXVA Xlim GO 2 (Green Ripple)', 'category': 'POD-системы', 'subcategory': 'OXVA', 'brand': 'OXVA', 'price': 1890, 'stock': 3},
-            {'code': '01590', 'name': 'OXVA Xlim GO 2 (Light Brown Shadow)', 'category': 'POD-системы', 'subcategory': 'OXVA', 'brand': 'OXVA', 'price': 1890, 'stock': 8},
+            {'code': '01506', 'name': 'HQD Zest Suit (Blue green)', 'category': 'Жидкости', 'subcategory': 'HQD', 'brand': 'HQD', 'price': 1190, 'stock': 5},
+            {'code': '00940', 'name': 'HQD Zest Suit (Blue pink)', 'category': 'Жидкости', 'subcategory': 'HQD', 'brand': 'HQD', 'price': 1190, 'stock': 5},
+            {'code': '01507', 'name': 'HQD Zest Suit (Green purple)', 'category': 'Жидкости', 'subcategory': 'HQD', 'brand': 'HQD', 'price': 1190, 'stock': 5},
+            {'code': '01508', 'name': 'HQD Zest Suit (Green white)', 'category': 'Жидкости', 'subcategory': 'HQD', 'brand': 'HQD', 'price': 1190, 'stock': 5},
+            {'code': '00942', 'name': 'HQD Zest Suit (Marble green)', 'category': 'Жидкости', 'subcategory': 'HQD', 'brand': 'HQD', 'price': 1190, 'stock': 30},
+            {'code': '01589', 'name': 'OXVA Xlim GO 2 (Green Ripple)', 'category': 'Картриджи', 'subcategory': 'OXVA', 'brand': 'OXVA', 'price': 1890, 'stock': 3},
+            {'code': '01590', 'name': 'OXVA Xlim GO 2 (Light Brown Shadow)', 'category': 'Картриджи', 'subcategory': 'OXVA', 'brand': 'OXVA', 'price': 1890, 'stock': 8},
             {'code': '01594', 'name': 'OXVA Xlim V3 Cartridge 3pcs (0.4)', 'category': 'POD-системы', 'subcategory': 'OXVA', 'brand': 'OXVA', 'price': 690, 'stock': 6},
             {'code': '01595', 'name': 'OXVA Xlim V3 Cartridge 3pcs (0.6)', 'category': 'POD-системы', 'subcategory': 'OXVA', 'brand': 'OXVA', 'price': 690, 'stock': 2},
             {'code': '01596', 'name': 'OXVA Xlim V3 Cartridge 3pcs (0.8)', 'category': 'POD-системы', 'subcategory': 'OXVA', 'brand': 'OXVA', 'price': 690, 'stock': 5},
@@ -252,22 +300,6 @@ class Database:
             {'code': '01523', 'name': 'ELF BAR BC 45000 (Sour Apple Kiwi)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2290, 'stock': 10},
             {'code': '01524', 'name': 'ELF BAR BC 45000 (Strawberry Grapefruit)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2290, 'stock': 9},
             {'code': '01515', 'name': 'ELF BAR BC 45000 (Watermelon Ice)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2290, 'stock': 55},
-            {'code': '01598', 'name': 'EBCREATE BC PRO 40000 (Aurora Berries)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2190, 'stock': 46},
-            {'code': '01600', 'name': 'EBCREATE BC PRO 40000 (Blackberry Grape)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2190, 'stock': 50},
-            {'code': '01599', 'name': 'EBCREATE BC PRO 40000 (Black Mint)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2190, 'stock': 64},
-            {'code': '01601', 'name': 'EBCREATE BC PRO 40000 (Blue Razz Ice)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2190, 'stock': 49},
-            {'code': '01602', 'name': 'EBCREATE BC PRO 40000 (Grape Twist)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2190, 'stock': 60},
-            {'code': '01603', 'name': 'EBCREATE BC PRO 40000 (Pineapple POM)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2190, 'stock': 64},
-            {'code': '01604', 'name': 'EBCREATE BC PRO 40000 (Sour Apple Ice)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2190, 'stock': 54},
-            {'code': '01605', 'name': 'EBCREATE BC PRO 40000 (Sour Fcuking Fab)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2190, 'stock': 47},
-            {'code': '01606', 'name': 'EBCREATE BC PRO 40000 (Strawberry Blend)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2190, 'stock': 66},
-            {'code': '01607', 'name': 'EBCREATE BC PRO 40000 (Strawberry Kiwi)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2190, 'stock': 61},
-            {'code': '01608', 'name': 'EBCREATE BC PRO 40000 (Strawberry Raspberry Frost)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2190, 'stock': 61},
-            {'code': '01609', 'name': 'EBCREATE BC PRO 40000 (Toasted Pineapple)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2190, 'stock': 55},
-            {'code': '01610', 'name': 'EBCREATE BC PRO 40000 (Triple Berry)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2190, 'stock': 45},
-            {'code': '01611', 'name': 'EBCREATE BC PRO 40000 (Watermelon Ice)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2190, 'stock': 56},
-            {'code': '01612', 'name': 'EBCREATE BC PRO 40000 (Watermelon Peach Frost)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2190, 'stock': 66},
-            {'code': '01613', 'name': 'EBCREATE BC PRO 40000 (Winter Mint)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2190, 'stock': 68},
             {'code': '01261', 'name': 'ELF BAR GH 33000 PRO (Apple Kiwi Ice)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 1990, 'stock': 37},
             {'code': '01250', 'name': 'ELF BAR GH 33000 PRO (Blue Razz Ice)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 1990, 'stock': 64},
             {'code': '01258', 'name': 'ELF BAR GH 33000 PRO (Cherry Pomegranate Pineapple)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 1990, 'stock': 58},
@@ -352,18 +384,6 @@ class Database:
             {'code': '00042', 'name': 'ELF BAR RI3000 (Watermelon Coconut Water)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 690, 'stock': 33},
             {'code': '00043', 'name': 'ELF BAR RI3000 (Watermelon Ice)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 690, 'stock': 28},
             {'code': '00044', 'name': 'ELF BAR RI3000 (Watermelon Kiwi Berry Ice)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 690, 'stock': 22},
-            {'code': '01360', 'name': 'Lush King Pro 40000 (Black Currant Pineapple)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2090, 'stock': 11},
-            {'code': '01372', 'name': 'Lush King Pro 40000 (Black Grape Ice)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2090, 'stock': 5},
-            {'code': '01373', 'name': 'Lush King Pro 40000 (Blue Razz Ice)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2090, 'stock': 5},
-            {'code': '01364', 'name': 'Lush King Pro 40000 (Cactus Lime)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2090, 'stock': 6},
-            {'code': '01365', 'name': 'Lush King Pro 40000 (Cherry Burst)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2090, 'stock': 36},
-            {'code': '01362', 'name': 'Lush King Pro 40000 (Cucumber Lime)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2090, 'stock': 28},
-            {'code': '01361', 'name': 'Lush King Pro 40000 (Milky Oolong)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2090, 'stock': 98},
-            {'code': '01366', 'name': 'Lush King Pro 40000 (Mountain Mint)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2090, 'stock': 40},
-            {'code': '01370', 'name': 'Lush King Pro 40000 (Pomegranate Burst)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2090, 'stock': 6},
-            {'code': '01371', 'name': 'Lush King Pro 40000 (Sour Apple Ice)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2090, 'stock': 13},
-            {'code': '01367', 'name': 'Lush King Pro 40000 (Sour Pineapple ice)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2090, 'stock': 10},
-            {'code': '01369', 'name': 'Lush King Pro 40000 (Sour Strawberry Dragonfruit)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2090, 'stock': 6},
             {'code': '01109', 'name': 'MoonNight 40000 (Blue razz ice)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 1990, 'stock': 10},
             {'code': '01110', 'name': 'MoonNight 40000 (Cheery watermelon)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 1990, 'stock': 10},
             {'code': '01112', 'name': 'MoonNight 40000 (Grape ice)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 1990, 'stock': 12},
@@ -391,14 +411,14 @@ class Database:
             {'code': '01087', 'name': 'Nic King (Sour Strawberry Dragonfruit)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 1790, 'stock': 38},
             {'code': '01088', 'name': 'Nic King (Watermelon Cherry)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 1790, 'stock': 42},
             {'code': '01089', 'name': 'Nic King (Watermelon Ice)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 1790, 'stock': 36},
-            {'code': '01090', 'name': 'Sour King (Lemon Lime Ice Tea)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 1790, 'stock': 97},
-            {'code': '01091', 'name': 'Sour King (Red Raspberry Strawberry)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 1790, 'stock': 56},
-            {'code': '01092', 'name': 'Sour King (Sour Apple Candy)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 1790, 'stock': 76},
-            {'code': '01093', 'name': 'Sour King (Sour Apple Pear)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 1790, 'stock': 88},
-            {'code': '01094', 'name': 'Sour King (Sour Blueberry Watermelon)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 1790, 'stock': 61},
-            {'code': '01095', 'name': 'Sour King (Sour Kiwi Lemonade)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 1790, 'stock': 54},
-            {'code': '01096', 'name': 'Sour King (Sour Strawberry Kiwi)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 1790, 'stock': 65},
-            {'code': '01097', 'name': 'Sour King (Sour Triple Berry)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 1790, 'stock': 59},
+            {'code': '01090', 'name': 'Sour King (Lemon Lime Ice Tea)', 'category': 'Жидкости', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 1790, 'stock': 97},
+            {'code': '01091', 'name': 'Sour King (Red Raspberry Strawberry)', 'category': 'Жидкости', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 1790, 'stock': 56},
+            {'code': '01092', 'name': 'Sour King (Sour Apple Candy)', 'category': 'Жидкости', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 1790, 'stock': 76},
+            {'code': '01093', 'name': 'Sour King (Sour Apple Pear)', 'category': 'Жидкости', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 1790, 'stock': 88},
+            {'code': '01094', 'name': 'Sour King (Sour Blueberry Watermelon)', 'category': 'Жидкости', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 1790, 'stock': 61},
+            {'code': '01095', 'name': 'Sour King (Sour Kiwi Lemonade)', 'category': 'Жидкости', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 1790, 'stock': 54},
+            {'code': '01096', 'name': 'Sour King (Sour Strawberry Kiwi)', 'category': 'Жидкости', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 1790, 'stock': 65},
+            {'code': '01097', 'name': 'Sour King (Sour Triple Berry)', 'category': 'Жидкости', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 1790, 'stock': 59},
             {'code': '01098', 'name': 'Sweet King (Apple Watermelon)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 1790, 'stock': 20},
             {'code': '01099', 'name': 'Sweet King (Grape ice)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 1790, 'stock': 4},
             {'code': '01100', 'name': 'Sweet King (Jasmine Raspberry)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 1790, 'stock': 44},
@@ -406,86 +426,10 @@ class Database:
             {'code': '01102', 'name': 'Sweet King (Pear Soda)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 1790, 'stock': 68},
             {'code': '01103', 'name': 'Sweet King (Pine Needle Mint)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 1790, 'stock': 67},
             {'code': '01105', 'name': 'Sweet King (Watermelon Cherry)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 1790, 'stock': 33},
-            {'code': '01496', 'name': 'TRIO 40000 (Cool Menthol)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2090, 'stock': 56},
-            {'code': '01497', 'name': 'TRIO 40000 (LA Grape)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2090, 'stock': 52},
-            {'code': '01498', 'name': 'TRIO 40000 (Peach Twist)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2090, 'stock': 51},
-            {'code': '01499', 'name': 'TRIO 40000 (Pineapple Lime)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2090, 'stock': 50},
-            {'code': '01500', 'name': 'TRIO 40000 (Pomegranate Blast)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2090, 'stock': 45},
-            {'code': '01501', 'name': 'TRIO 40000 (Raspberry Watermelon)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2090, 'stock': 40},
-            {'code': '01502', 'name': 'TRIO 40000 (Sakura Grape)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2090, 'stock': 40},
-            {'code': '01503', 'name': 'TRIO 40000 (Sour Apple Ice)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2090, 'stock': 48},
-            {'code': '01504', 'name': 'TRIO 40000 (Sour Strawberry Dragonfruit)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2090, 'stock': 40},
-            {'code': '01505', 'name': 'TRIO 40000 (Strawberry Orange Lime)', 'category': 'Одноразки', 'subcategory': 'ELF BAR', 'brand': 'ElfBar', 'price': 2090, 'stock': 48},
         ]
         
-        # ===== СКИДОЧНЫЕ =====
+        # ===== ОСТАЛОСЬ МАЛО (low stock) =====
         discount = [
-            {'code': '01447', 'name': 'Funky Monkey (Contis)', 'category': 'Скидочные', 'subcategory': 'Funky Monkey', 'brand': 'Funky Monkey', 'price': 590, 'stock': 28},
-            {'code': '01414', 'name': 'JooYoo 10k 5% (Blueberry raspberry)', 'category': 'Скидочные', 'subcategory': 'JooYoo', 'brand': 'JooYoo', 'price': 690, 'stock': 8},
-            {'code': '01417', 'name': 'JooYoo 10k 5% (Blue razz)', 'category': 'Скидочные', 'subcategory': 'JooYoo', 'brand': 'JooYoo', 'price': 690, 'stock': 8},
-            {'code': '01423', 'name': 'JooYoo 10k 5% (Cherry ice)', 'category': 'Скидочные', 'subcategory': 'JooYoo', 'brand': 'JooYoo', 'price': 690, 'stock': 9},
-            {'code': '01416', 'name': 'JooYoo 10k 5% (Clear)', 'category': 'Скидочные', 'subcategory': 'JooYoo', 'brand': 'JooYoo', 'price': 690, 'stock': 9},
-            {'code': '01422', 'name': 'JooYoo 10k 5% (Grape ice)', 'category': 'Скидочные', 'subcategory': 'JooYoo', 'brand': 'JooYoo', 'price': 690, 'stock': 9},
-            {'code': '01429', 'name': 'JooYoo 10k 5% (Kiwi passion fruit guava)', 'category': 'Скидочные', 'subcategory': 'JooYoo', 'brand': 'JooYoo', 'price': 690, 'stock': 7},
-            {'code': '01427', 'name': 'JooYoo 10k 5% (lemon tart)', 'category': 'Скидочные', 'subcategory': 'JooYoo', 'brand': 'JooYoo', 'price': 690, 'stock': 8},
-            {'code': '01428', 'name': 'JooYoo 10k 5% (Mint ice)', 'category': 'Скидочные', 'subcategory': 'JooYoo', 'brand': 'JooYoo', 'price': 690, 'stock': 8},
-            {'code': '01419', 'name': 'JooYoo 10k 5% (Mojito)', 'category': 'Скидочные', 'subcategory': 'JooYoo', 'brand': 'JooYoo', 'price': 690, 'stock': 7},
-            {'code': '01418', 'name': 'JooYoo 10k 5% (OAT milk puding)', 'category': 'Скидочные', 'subcategory': 'JooYoo', 'brand': 'JooYoo', 'price': 690, 'stock': 7},
-            {'code': '01420', 'name': 'JooYoo 10k 5% (Peach ice)', 'category': 'Скидочные', 'subcategory': 'JooYoo', 'brand': 'JooYoo', 'price': 690, 'stock': 9},
-            {'code': '01421', 'name': 'JooYoo 10k 5% (Pineapple cocounut)', 'category': 'Скидочные', 'subcategory': 'JooYoo', 'brand': 'JooYoo', 'price': 690, 'stock': 9},
-            {'code': '01415', 'name': 'JooYoo 10k 5% (Pineapple mango peach)', 'category': 'Скидочные', 'subcategory': 'JooYoo', 'brand': 'JooYoo', 'price': 690, 'stock': 9},
-            {'code': '01426', 'name': 'JooYoo 10k 5% (Rut bear)', 'category': 'Скидочные', 'subcategory': 'JooYoo', 'brand': 'JooYoo', 'price': 690, 'stock': 9},
-            {'code': '01424', 'name': 'JooYoo 10k 5% (Strawberry ice)', 'category': 'Скидочные', 'subcategory': 'JooYoo', 'brand': 'JooYoo', 'price': 690, 'stock': 9},
-            {'code': '01430', 'name': 'JooYoo 10k 5% (Strawberry kiwi)', 'category': 'Скидочные', 'subcategory': 'JooYoo', 'brand': 'JooYoo', 'price': 690, 'stock': 9},
-            {'code': '01425', 'name': 'JooYoo 10k 5% (Watermelon ice)', 'category': 'Скидочные', 'subcategory': 'JooYoo', 'brand': 'JooYoo', 'price': 690, 'stock': 9},
-            {'code': '01446', 'name': 'SnoopySmoke 15k 5% (Bahama mama)', 'category': 'Скидочные', 'subcategory': 'SnoopySmoke', 'brand': 'SnoopySmoke', 'price': 790, 'stock': 14},
-            {'code': '01434', 'name': 'SnoopySmoke 15k 5% (Blue razz ice)', 'category': 'Скидочные', 'subcategory': 'SnoopySmoke', 'brand': 'SnoopySmoke', 'price': 790, 'stock': 15},
-            {'code': '01441', 'name': 'SnoopySmoke 15k 5% (Cool Mint)', 'category': 'Скидочные', 'subcategory': 'SnoopySmoke', 'brand': 'SnoopySmoke', 'price': 790, 'stock': 16},
-            {'code': '01433', 'name': 'SnoopySmoke 15k 5% (Grape ice)', 'category': 'Скидочные', 'subcategory': 'SnoopySmoke', 'brand': 'SnoopySmoke', 'price': 790, 'stock': 15},
-            {'code': '01432', 'name': 'SnoopySmoke 15k 5% (Luch ice)', 'category': 'Скидочные', 'subcategory': 'SnoopySmoke', 'brand': 'SnoopySmoke', 'price': 790, 'stock': 18},
-            {'code': '01435', 'name': 'SnoopySmoke 15k 5% (Mexican mango ice)', 'category': 'Скидочные', 'subcategory': 'SnoopySmoke', 'brand': 'SnoopySmoke', 'price': 790, 'stock': 19},
-            {'code': '01437', 'name': 'SnoopySmoke 15k 5% (Pina colada)', 'category': 'Скидочные', 'subcategory': 'SnoopySmoke', 'brand': 'SnoopySmoke', 'price': 790, 'stock': 27},
-            {'code': '01436', 'name': 'SnoopySmoke 15k 5% (Pineapple ice)', 'category': 'Скидочные', 'subcategory': 'SnoopySmoke', 'brand': 'SnoopySmoke', 'price': 790, 'stock': 29},
-            {'code': '01445', 'name': 'SnoopySmoke 15k 5% (Red Juice)', 'category': 'Скидочные', 'subcategory': 'SnoopySmoke', 'brand': 'SnoopySmoke', 'price': 790, 'stock': 16},
-            {'code': '01442', 'name': 'SnoopySmoke 15k 5% (Strawberry banana)', 'category': 'Скидочные', 'subcategory': 'SnoopySmoke', 'brand': 'SnoopySmoke', 'price': 790, 'stock': 15},
-            {'code': '01439', 'name': 'SnoopySmoke 15k 5% (Strawberry ice)', 'category': 'Скидочные', 'subcategory': 'SnoopySmoke', 'brand': 'SnoopySmoke', 'price': 790, 'stock': 18},
-            {'code': '01440', 'name': 'SnoopySmoke 15k 5% (Strawberry kiwi)', 'category': 'Скидочные', 'subcategory': 'SnoopySmoke', 'brand': 'SnoopySmoke', 'price': 790, 'stock': 16},
-            {'code': '01431', 'name': 'SnoopySmoke 15k 5% (Tripple Berry ice)', 'category': 'Скидочные', 'subcategory': 'SnoopySmoke', 'brand': 'SnoopySmoke', 'price': 790, 'stock': 17},
-            {'code': '01438', 'name': 'SnoopySmoke 15k 5% (Tropical rainbow blast)', 'category': 'Скидочные', 'subcategory': 'SnoopySmoke', 'brand': 'SnoopySmoke', 'price': 790, 'stock': 14},
-            {'code': '01443', 'name': 'SnoopySmoke 15k 5% (Watermelon ice)', 'category': 'Скидочные', 'subcategory': 'SnoopySmoke', 'brand': 'SnoopySmoke', 'price': 790, 'stock': 16},
-            {'code': '01408', 'name': 'YOCCO 12k 5% (California Cherry)', 'category': 'Скидочные', 'subcategory': 'YOCCO', 'brand': 'YOCCO', 'price': 750, 'stock': 21},
-            {'code': '01413', 'name': 'YOCCO 12k 5% (Miami mint)', 'category': 'Скидочные', 'subcategory': 'YOCCO', 'brand': 'YOCCO', 'price': 750, 'stock': 23},
-            {'code': '01406', 'name': 'YOCCO 12k 5% (Stawnana)', 'category': 'Скидочные', 'subcategory': 'YOCCO', 'brand': 'YOCCO', 'price': 750, 'stock': 23},
-            {'code': '01411', 'name': 'YOCCO 12k 5% (Strawkiwi)', 'category': 'Скидочные', 'subcategory': 'YOCCO', 'brand': 'YOCCO', 'price': 750, 'stock': 24},
-            {'code': '01410', 'name': 'YOCCO 12k 5% (Strawmelon)', 'category': 'Скидочные', 'subcategory': 'YOCCO', 'brand': 'YOCCO', 'price': 750, 'stock': 25},
-            {'code': '01407', 'name': 'YOCCO 12k 5% (Watermelon ice)', 'category': 'Скидочные', 'subcategory': 'YOCCO', 'brand': 'YOCCO', 'price': 750, 'stock': 25},
-            {'code': '01412', 'name': 'YOCCO 12k 5% (Yammy gummy)', 'category': 'Скидочные', 'subcategory': 'YOCCO', 'brand': 'YOCCO', 'price': 750, 'stock': 25},
-            {'code': '01388', 'name': 'BLK 10k 2% (Blueberry cherry crangberry)', 'category': 'Скидочные', 'subcategory': 'BLK', 'brand': 'BLK', 'price': 590, 'stock': 8},
-            {'code': '01400', 'name': 'BLK 10k 2% (Blueberry raspberry blackberry)', 'category': 'Скидочные', 'subcategory': 'BLK', 'brand': 'BLK', 'price': 590, 'stock': 12},
-            {'code': '01386', 'name': 'BLK 10k 2% (Blueberry Raspberry ice)', 'category': 'Скидочные', 'subcategory': 'BLK', 'brand': 'BLK', 'price': 590, 'stock': 13},
-            {'code': '01391', 'name': 'BLK 10k 2% (Blueberry sour raspberry)', 'category': 'Скидочные', 'subcategory': 'BLK', 'brand': 'BLK', 'price': 590, 'stock': 13},
-            {'code': '01390', 'name': 'BLK 10k 2% (Cherry ice)', 'category': 'Скидочные', 'subcategory': 'BLK', 'brand': 'BLK', 'price': 590, 'stock': 14},
-            {'code': '01405', 'name': 'BLK 10k 2% (Cherry Peach Lemonade)', 'category': 'Скидочные', 'subcategory': 'BLK', 'brand': 'BLK', 'price': 590, 'stock': 12},
-            {'code': '01395', 'name': 'BLK 10k 2% (Fizzy cherry)', 'category': 'Скидочные', 'subcategory': 'BLK', 'brand': 'BLK', 'price': 590, 'stock': 13},
-            {'code': '01385', 'name': 'BLK 10k 2% (Fresh Mint)', 'category': 'Скидочные', 'subcategory': 'BLK', 'brand': 'BLK', 'price': 590, 'stock': 23},
-            {'code': '01394', 'name': 'BLK 10k 2% (Gummy bear)', 'category': 'Скидочные', 'subcategory': 'BLK', 'brand': 'BLK', 'price': 590, 'stock': 22},
-            {'code': '01396', 'name': 'BLK 10k 2% (Ice pop)', 'category': 'Скидочные', 'subcategory': 'BLK', 'brand': 'BLK', 'price': 590, 'stock': 23},
-            {'code': '01393', 'name': 'BLK 10k 2% (Lemon Lime)', 'category': 'Скидочные', 'subcategory': 'BLK', 'brand': 'BLK', 'price': 590, 'stock': 24},
-            {'code': '01403', 'name': 'BLK 10k 2% (Mango passion fruit mojito)', 'category': 'Скидочные', 'subcategory': 'BLK', 'brand': 'BLK', 'price': 590, 'stock': 11},
-            {'code': '01381', 'name': 'BLK 10k 2% (Monster)', 'category': 'Скидочные', 'subcategory': 'BLK', 'brand': 'BLK', 'price': 590, 'stock': 13},
-            {'code': '01384', 'name': 'BLK 10k 2% (Mr black)', 'category': 'Скидочные', 'subcategory': 'BLK', 'brand': 'BLK', 'price': 590, 'stock': 12},
-            {'code': '01380', 'name': 'BLK 10k 2% (Mr Blue)', 'category': 'Скидочные', 'subcategory': 'BLK', 'brand': 'BLK', 'price': 590, 'stock': 23},
-            {'code': '01399', 'name': 'BLK 10k 2% (Oasis)', 'category': 'Скидочные', 'subcategory': 'BLK', 'brand': 'BLK', 'price': 590, 'stock': 14},
-            {'code': '01382', 'name': 'BLK 10k 2% (Pineapple ice)', 'category': 'Скидочные', 'subcategory': 'BLK', 'brand': 'BLK', 'price': 590, 'stock': 24},
-            {'code': '01404', 'name': 'BLK 10k 2% (Pineapple mango guava)', 'category': 'Скидочные', 'subcategory': 'BLK', 'brand': 'BLK', 'price': 590, 'stock': 20},
-            {'code': '01402', 'name': 'BLK 10k 2% (Rhubarb Raspberry Orange)', 'category': 'Скидочные', 'subcategory': 'BLK', 'brand': 'BLK', 'price': 590, 'stock': 23},
-            {'code': '01389', 'name': 'BLK 10k 2% (Skittles)', 'category': 'Скидочные', 'subcategory': 'BLK', 'brand': 'BLK', 'price': 590, 'stock': 20},
-            {'code': '01392', 'name': 'BLK 10k 2% (Sommer beries)', 'category': 'Скидочные', 'subcategory': 'BLK', 'brand': 'BLK', 'price': 590, 'stock': 21},
-            {'code': '01387', 'name': 'BLK 10k 2% (Strawberry kiwi watermelon)', 'category': 'Скидочные', 'subcategory': 'BLK', 'brand': 'BLK', 'price': 590, 'stock': 9},
-            {'code': '01398', 'name': 'BLK 10k 2% (Strawberry raspberry)', 'category': 'Скидочные', 'subcategory': 'BLK', 'brand': 'BLK', 'price': 590, 'stock': 24},
-            {'code': '01397', 'name': 'BLK 10k 2% (Strawberry raspberry cherry ice)', 'category': 'Скидочные', 'subcategory': 'BLK', 'brand': 'BLK', 'price': 590, 'stock': 24},
-            {'code': '01383', 'name': 'BLK 10k 2% (Tripple mango)', 'category': 'Скидочные', 'subcategory': 'BLK', 'brand': 'BLK', 'price': 590, 'stock': 24},
-            {'code': '01401', 'name': 'BLK 10k 2% (Watermelon ice)', 'category': 'Скидочные', 'subcategory': 'BLK', 'brand': 'BLK', 'price': 590, 'stock': 19},
         ]
         
         return liquids + pods + disposables + discount
@@ -501,29 +445,30 @@ class Database:
     def get_products(self, category: Optional[str] = None, subcategory: Optional[str] = None, search: Optional[str] = None) -> List[Dict]:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
-        query = 'SELECT * FROM products WHERE is_active = 1'
-        params = []
-        
-        if category:
-            query += ' AND category = ?'
-            params.append(category)
-        if subcategory:
-            query += ' AND subcategory = ?'
-            params.append(subcategory)
+
         if search:
-            query += ' AND (name LIKE ? OR code LIKE ?)'
-            params.extend([f'%{search}%', f'%{search}%'])
-        
-        query += ' ORDER BY name'
-        cursor.execute(query, params)
-        
+            cursor.execute(
+                'SELECT * FROM products WHERE is_active = 1 AND (name LIKE ? OR code LIKE ? OR brand LIKE ?) ORDER BY name',
+                [f'%{search}%', f'%{search}%', f'%{search}%']
+            )
+        elif category and subcategory:
+            cursor.execute(
+                'SELECT * FROM products WHERE is_active = 1 AND category = ? AND subcategory = ? ORDER BY name',
+                [category, subcategory]
+            )
+        elif category:
+            cursor.execute(
+                'SELECT * FROM products WHERE is_active = 1 AND category = ? ORDER BY name',
+                [category]
+            )
+        else:
+            cursor.execute('SELECT * FROM products WHERE is_active = 1 ORDER BY name')
+
         products = [{
             "id": p[0], "code": p[1], "name": p[2], "category": p[3],
             "subcategory": p[4], "brand": p[5], "price": p[6],
             "stock": p[7], "is_active": p[8]
         } for p in cursor.fetchall()]
-        
         conn.close()
         return products
     
@@ -550,7 +495,198 @@ class Database:
         cursor = conn.cursor()
         cursor.execute('SELECT COUNT(*) FROM products WHERE is_active = 1')
         total_products = cursor.fetchone()[0]
+        cursor.execute('SELECT COUNT(*) FROM products WHERE is_active = 1 AND stock > 0')
+        in_stock = cursor.fetchone()[0]
+        cursor.execute('SELECT COUNT(*) FROM products WHERE is_active = 1 AND stock = 0')
+        out_of_stock = cursor.fetchone()[0]
         conn.close()
-        return {"total_products": total_products}
+        return {
+            "total_products": total_products,
+            "in_stock": in_stock,
+            "out_of_stock": out_of_stock
+        }
+
+    def update_stock(self, code: str, new_stock: int):
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute('UPDATE products SET stock = ? WHERE code = ?', (new_stock, code))
+        conn.commit()
+        conn.close()
+
+    def update_price(self, code: str, new_price: float):
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute('UPDATE products SET price = ? WHERE code = ?', (new_price, code))
+        conn.commit()
+        conn.close()
+
+    def get_product_by_code(self, code: str) -> Optional[Dict]:
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM products WHERE code = ? AND is_active = 1', (code,))
+        row = cursor.fetchone()
+        conn.close()
+        if not row:
+            return None
+        return {
+            "id": row[0], "code": row[1], "name": row[2], "category": row[3],
+            "subcategory": row[4], "brand": row[5], "price": row[6],
+            "stock": row[7], "is_active": row[8]
+        }
+
+    # ------------------ Favorites & Subscriptions ------------------
+    def add_favorite(self, user_id: int, username: str, product_code: str) -> bool:
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        try:
+            cursor.execute('INSERT OR IGNORE INTO favorites (user_id, username, product_code) VALUES (?, ?, ?)',
+                          (user_id or 0, username or '', product_code))
+            conn.commit()
+            return True
+        except Exception as e:
+            print(f"Failed to add favorite: {e}")
+            return False
+        finally:
+            conn.close()
+
+    def remove_favorite(self, user_id: int, username: str, product_code: str) -> bool:
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        try:
+            cursor.execute('DELETE FROM favorites WHERE user_id = ? AND username = ? AND product_code = ?',
+                          (user_id or 0, username or '', product_code))
+            conn.commit()
+            return True
+        except Exception as e:
+            print(f"Failed to remove favorite: {e}")
+            return False
+        finally:
+            conn.close()
+
+    def list_favorites(self, user_id: int = 0, username: str = '') -> List[Dict]:
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        try:
+            cursor.execute('SELECT product_code, created_at FROM favorites WHERE user_id = ? OR username = ? ORDER BY created_at DESC',
+                          (user_id or 0, username or ''))
+            rows = cursor.fetchall()
+            return [{'product_code': r[0], 'created_at': r[1]} for r in rows]
+        finally:
+            conn.close()
+
+    # ------------------ Flavor Watchlist ------------------
+    def add_flavor_watch(self, user_id: int, username: str, query_text: str) -> bool:
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        try:
+            cursor.execute('INSERT OR IGNORE INTO flavor_watches (user_id, username, query_text) VALUES (?, ?, ?)',
+                          (user_id or 0, username or '', query_text))
+            conn.commit()
+            return True
+        except Exception as e:
+            print(f"Failed to add flavor watch: {e}")
+            return False
+        finally:
+            conn.close()
+
+    def remove_flavor_watch(self, user_id: int, username: str, query_text: str) -> bool:
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        try:
+            cursor.execute('DELETE FROM flavor_watches WHERE user_id = ? AND username = ? AND query_text = ?',
+                          (user_id or 0, username or '', query_text))
+            conn.commit()
+            return True
+        except Exception as e:
+            print(f"Failed to remove flavor watch: {e}")
+            return False
+        finally:
+            conn.close()
+
+    def list_flavor_watches(self, user_id: int = 0, username: str = '') -> List[Dict]:
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        try:
+            cursor.execute('SELECT query_text, created_at FROM flavor_watches WHERE user_id = ? OR username = ? ORDER BY created_at DESC',
+                          (user_id or 0, username or ''))
+            rows = cursor.fetchall()
+            return [{'query_text': r[0], 'created_at': r[1]} for r in rows]
+        finally:
+            conn.close()
+
+    def find_watchers_for_product(self, product_name: str) -> List[Dict]:
+        # Normalize strings (remove punctuation, collapse spaces) and use case-insensitive substring match
+        def _norm(s: str) -> str:
+            if not s:
+                return ''
+            s2 = s.lower()
+            # replace non-alphanumeric (both latin and cyrillic) with space
+            s2 = re.sub(r'[^0-9a-zа-яё]+', ' ', s2, flags=re.IGNORECASE)
+            return ' '.join(s2.split())
+
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        try:
+            cursor.execute('SELECT user_id, username, query_text FROM flavor_watches')
+            rows = cursor.fetchall()
+            res = []
+            pname = _norm(product_name or '')
+            for r in rows:
+                qraw = r[2] or ''
+                q = _norm(qraw)
+                if q and q in pname:
+                    res.append({'user_id': r[0], 'username': r[1], 'query_text': qraw})
+            return res
+        finally:
+            conn.close()
+
+    # ------------------ Users ------------------
+    def link_user(self, tg_id: int, username: str, first_name: str) -> bool:
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        try:
+            cursor.execute('INSERT OR REPLACE INTO users (tg_id, username, first_name) VALUES (?, ?, ?)',
+                          (tg_id, username or '', first_name or ''))
+            conn.commit()
+            return True
+        except Exception as e:
+            print(f"Failed to link user: {e}")
+            return False
+        finally:
+            conn.close()
+
+    def get_user_by_username(self, username: str) -> Optional[Dict]:
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        try:
+            cursor.execute('SELECT tg_id, username, first_name FROM users WHERE username = ? LIMIT 1', (username,))
+            row = cursor.fetchone()
+            if not row: return None
+            return { 'tg_id': row[0], 'username': row[1], 'first_name': row[2] }
+        finally:
+            conn.close()
+
+    def get_user_by_tgid(self, tg_id: int) -> Optional[Dict]:
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        try:
+            cursor.execute('SELECT tg_id, username, first_name FROM users WHERE tg_id = ? LIMIT 1', (tg_id,))
+            row = cursor.fetchone()
+            if not row: return None
+            return { 'tg_id': row[0], 'username': row[1], 'first_name': row[2] }
+        finally:
+            conn.close()
+
+    def list_users(self) -> List[Dict]:
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        try:
+            cursor.execute('SELECT tg_id, username, first_name, created_at FROM users ORDER BY created_at DESC')
+            rows = cursor.fetchall()
+            return [{'tg_id': r[0], 'username': r[1], 'first_name': r[2], 'created_at': r[3]} for r in rows]
+        finally:
+            conn.close()
+
+    # subscriptions removed
 
 db = Database()

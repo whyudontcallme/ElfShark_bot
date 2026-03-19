@@ -3,163 +3,169 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🦈 ElfShark</title>
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>🦈 ElfShark — Premium Vape Store</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+    <!-- Telegram API -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="stylesheet" href="/static/styles.css?v=14.0">
 </head>
 
 <body>
-    <!-- Age Modal -->
-    <div id="ageModal" class="modal active">
-        <div class="modal-content">
-            <h2>🔞 Verify Your Age</h2>
-            <p>Вам должно быть 18+ для входа</p>
-            <div class="modal-buttons">
-                <button class="btn btn-secondary" onclick="rejectAge()">Нет, мне меньше 18</button>
-                <button class="btn btn-primary" onclick="confirmAge()">Да, мне 18+</button>
+    <!-- Age Gate -->
+    <div id="ageGate" class="age-gate active">
+        <div class="age-content">
+            <div class="age-icon">🔞</div>
+            <h1 data-i18n="age.title">Подтвердите возраст</h1>
+            <p data-i18n="age.text">Этот магазин содержит продукцию строго 18+. Вам уже исполнилось 18 лет?</p>
+            <div class="age-btns">
+                <button class="btn btn-primary" onclick="confirmAge()" data-i18n="age.yes">Да, мне есть 18+</button>
+                <button class="btn btn-secondary" onclick="rejectAge()" data-i18n="age.no">Мне меньше 18</button>
+            </div>
+            <small data-i18n="age.note">Входя в магазин, вы подтверждаете соблюдение правил и регламентов.</small>
+        </div>
+    </div>
+
+    <!-- Language & Currency Settings Modal (shown after age confirmation if not set) -->
+    <div id="settingsModal" class="settings-modal hidden">
+        <div class="settings-card">
+            <h3 data-i18n="settings.choose_lang">Выберите язык:</h3>
+            <div class="lang-list">
+                <button class="lang-btn" data-lang="uk" onclick="selectLanguage(this)"><span class="flag">🇺🇦</span> <span class="lang-label">Ukrainian</span></button>
+                <button class="lang-btn" data-lang="en" onclick="selectLanguage(this)"><span class="flag">🇬🇧</span> <span class="lang-label">English</span></button>
+                <button class="lang-btn" data-lang="pl" onclick="selectLanguage(this)"><span class="flag">🇵🇱</span> <span class="lang-label">Polish</span></button>
+                <button class="lang-btn" data-lang="ru" onclick="selectLanguage(this)"><span class="flag">🇷🇺</span> <span class="lang-label">Russian</span></button>
+            </div>
+
+            <h3 data-i18n="settings.choose_curr">Выберите валюту:</h3>
+            <div class="curr-list">
+                <button class="curr-btn" data-curr="PLN" onclick="selectCurrency(this)">PLN</button>
+                <button class="curr-btn" data-curr="UAH" onclick="selectCurrency(this)">UAH</button>
+                <button class="curr-btn" data-curr="USD" onclick="selectCurrency(this)">USD</button>
+            </div>
+
+            <div class="settings-actions">
+                <button id="saveSettingsBtn" class="btn btn-primary" data-i18n="settings.save" onclick="saveSettings()">Сохранить</button>
             </div>
         </div>
     </div>
 
-    <!-- Welcome Modal -->
-    <div id="welcomeModal" class="modal">
-        <div class="modal-content">
-            <h1>🦈 ElfShark</h1>
-            <p>Добро пожаловать!</p>
-
-            <div class="settings-section">
-                <h3>🌍 Язык / Language:</h3>
-                <div class="language-list">
-                    <button class="lang-btn active" data-lang="ru">🇷🇺 Русский</button>
-                    <button class="lang-btn" data-lang="en">🇬🇧 English</button>
-                    <button class="lang-btn" data-lang="uk">🇺🇦 Українська</button>
+    <div id="app" class="app-container hidden">
+        <!-- Header -->
+        <header class="main-header">
+            <div class="header-content">
+                <div class="logo">
+                    <img src="/static/sticker.png" alt="ElfShark" class="logo-img">
+                    <div class="logo-text">
+                        <h1>ElfShark</h1>
+                        <p>Premium Vapes & Pods</p>
+                    </div>
+                </div>
+                <div class="top-actions">
+                    <button class="action-btn icon-btn" onclick="openSettingsModal()" aria-label="Настройки" data-i18n-aria-label="header.settings_aria">⚙️</button>
+                    <button class="action-btn icon-btn" onclick="showFavorites()" aria-label="Избранное" data-i18n-aria-label="header.fav_aria">❤</button>
+                    <button class="action-btn icon-btn" onclick="showHistory()" aria-label="История" data-i18n-aria-label="header.history_aria">🕘</button>
                 </div>
             </div>
 
-            <div class="settings-section">
-                <h3>💱 Валюта:</h3>
-                <div class="currency-list">
-                    <button class="currency-btn active" data-currency="RUB">₽ RUB</button>
-                    <button class="currency-btn" data-currency="UAH">₴ UAH</button>
-                    <button class="currency-btn" data-currency="USD">$ USD</button>
+            <div class="categories-container" id="catsWrap">
+                <button class="cat-scroll-btn left hidden" id="catScrollLeft" aria-label="Влево" data-i18n-aria-label="cats.scroll_left" onclick="scrollCats(-1)">◀</button>
+                <div class="categories-scroll" id="categories">
+                    <!-- Categories will be injected here -->
+                </div>
+                <button class="cat-scroll-btn right hidden" id="catScrollRight" aria-label="Вправо" data-i18n-aria-label="cats.scroll_right" onclick="scrollCats(1)">▶</button>
+            </div>
+
+            <div class="subcategories-container hidden" id="subcatsWrap">
+                <div class="subcategories-scroll" id="subcategories">
+                    <!-- Subcategories will be injected here -->
                 </div>
             </div>
 
-            <div class="settings-section">
-                <h3>🎨 Тема:</h3>
-                <div class="theme-toggle">
-                    <span>☀️</span>
-                    <label class="switch">
-                        <input type="checkbox" id="themeSwitch" checked>
-                        <span class="slider"></span>
-                    </label>
-                    <span>🌙</span>
+            <div class="search-wrap">
+                <div class="search-input-group">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" id="searchInput" placeholder="Поиск товаров..." oninput="onSearch(this.value)" data-i18n-placeholder="search.placeholder">
+                    <button id="searchClear" class="search-clear hidden" onclick="clearSearch()">✕</button>
                 </div>
             </div>
-
-            <button class="btn btn-primary btn-large" onclick="goToShop()">Перейти в магазин →</button>
-        </div>
-    </div>
-
-    <!-- Main App -->
-    <div id="mainApp" class="app" style="display: none;">
-        <header class="header">
-            <h1>🦈 ElfShark</h1>
-            <button class="settings-btn" onclick="openSettings()">⚙️</button>
         </header>
 
-        <!-- Settings Panel -->
-        <div id="settingsPanel" class="settings-panel" style="display: none;">
-            <div class="settings-content">
-                <h3>⚙️ Настройки</h3>
+        <!-- Main Content -->
+        <main class="content">
+            <div class="section-meta">
+                <h2 id="currentCategoryTitle" data-i18n="cats.all_full">Все товары</h2>
+                <span class="count-badge" id="productCount">0 шт.</span>
+            </div>
 
-                <div class="setting-item">
-                    <label>🌍 Язык:</label>
-                    <select id="settingsLang" onchange="changeLanguage(this.value)">
-                        <option value="ru">🇷🇺 Русский</option>
-                        <option value="en">🇬🇧 English</option>
-                        <option value="uk">🇺🇦 Українська</option>
-                    </select>
-                </div>
+            <div id="productsGrid" class="products-grid">
+                <!-- Product cards -->
+            </div>
+        </main>
 
-                <div class="setting-item">
-                    <label>💱 Валюта:</label>
-                    <select id="settingsCurrency" onchange="changeCurrency(this.value)">
-                        <option value="RUB">₽ RUB</option>
-                        <option value="UAH">₴ UAH</option>
-                        <option value="USD">$ USD</option>
-                    </select>
-                </div>
+    <!-- Favorites / History overlays -->
+        <div id="overlayPanel" class="overlay-panel hidden">
+            <div class="overlay-header">
+                <h3 id="overlayTitle">Избранное</h3>
+                <button onclick="closeOverlay()">✕</button>
+            </div>
+            <div id="overlayBody" class="overlay-body"></div>
+        </div>
 
-                <div class="setting-item">
-                    <label>🎨 Тема:</label>
-                    <select id="settingsTheme" onchange="changeTheme(this.value)">
-                        <option value="dark">🌙 Тёмная</option>
-                        <option value="light">☀️ Светлая</option>
-                    </select>
-                </div>
-
-                <button class="btn btn-secondary btn-full" onclick="closeSettings()">Закрыть</button>
+        <!-- Product modal -->
+        <div id="productModal" class="product-modal hidden">
+            <div class="modal-card">
+                <button class="close-modal" onclick="closeProductModal()">✕</button>
+                <div id="modalContent"></div>
             </div>
         </div>
 
-        <div id="catalogTab" class="tab-content active">
-            <div class="search-box">
-                <input type="text" id="searchInput" placeholder="🔍 Поиск товаров..." oninput="searchProducts()">
+        <!-- Floating Cart Footer -->
+        <div id="cartFooter" class="cart-footer hidden">
+            <button class="cart-main-btn" onclick="openCart()">
+                <div class="cart-info">
+                    <span data-i18n="header.cart">🛒 КОРЗИНА</span>
+                    <span id="cartCount" class="hidden">0</span>
+                </div>
+                <div id="cartTotalPrice" class="cart-price">0</div>
+            </button>
+        </div>
+
+        <!-- Drawer Section -->
+        <div id="drawerBackdrop" class="drawer-backdrop hidden" onclick="closeCart()"></div>
+        <div id="cartDrawer" class="cart-drawer hidden">
+            <div class="drawer-header">
+                <h3 data-i18n="cart.title">🛒 Мой заказ</h3>
+                <button class="close-drawer" onclick="closeCart()">✕</button>
             </div>
 
-            <div class="categories-section">
-                <h2>📁 Категории</h2>
-                <div class="categories-grid" id="categoriesGrid"></div>
+            <div id="cartBody" class="drawer-body">
+                <!-- Cart items list -->
             </div>
 
-            <div class="products-section">
-                <div class="section-header">
-                    <h2 id="productsTitle">🔥 Все товары</h2>
-                    <span id="productsCount">0 товаров</span>
+            <div class="drawer-footer">
+                <div class="checkout-extra">
+                    <label for="checkoutUsername" class="checkout-label" data-i18n="checkout.username_label">Telegram username (без @) — обязательно</label>
+                    <input id="checkoutUsername" class="checkout-input" type="text" placeholder="@username или username" data-i18n-placeholder="checkout.username_placeholder" required>
                 </div>
-
-                <div class="products-grid" id="productsGrid">
-                    <div class="loading">Загрузка...</div>
-                </div>
-
-                <div class="empty-state" id="emptyProducts" style="display: none;">
-                    <p>Товары не найдены</p>
-                </div>
+                <button class="checkout-btn" onclick="checkout()">
+                    <span data-i18n="cart.checkout">Оформить за <span id="checkoutSum">0</span></span>
+                </button>
             </div>
         </div>
 
-        <nav class="bottom-nav">
-            <button class="nav-item active">
-                <span class="nav-icon">🏠</span>
-                <span class="nav-label">Каталог</span>
-            </button>
-            <button class="nav-item" onclick="openCart()">
-                <span class="nav-icon">🛒</span>
-                <span class="nav-label">Корзина</span>
-                <span class="cart-badge" id="cartBadge">0</span>
-            </button>
-        </nav>
+        <!-- Notification -->
+        <div id="toast" class="toast hidden"></div>
     </div>
 
-    <!-- Cart Modal -->
-    <div id="cartModal" class="modal">
-        <div class="modal-content">
-            <h2>🛒 Корзина</h2>
-            <div id="cartItems"></div>
-            <div class="cart-total">
-                <span>Итого:</span>
-                <span id="cartTotal">0 ₽</span>
-            </div>
-            <div class="modal-buttons">
-                <button class="btn btn-secondary" onclick="closeCart()">Продолжить</button>
-                <button class="btn btn-primary" onclick="checkout()">Оформить заказ</button>
-            </div>
-        </div>
-    </div>
-
-    <script src="/static/app.js"></script>
+    <!-- Scripts -->
+    <script src="/static/app.js?v=13.9"></script>
 </body>
 
 </html>
