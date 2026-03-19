@@ -7,3 +7,4 @@ PORT = 8080
 SHOP_NAME = "🦈 ElfShark"
 DEFAULT_CURRENCY = "USD"
 DEFAULT_THEME = "dark"
+WEBAPP_URL = "https://whyudontcallme.github.io/ElfShark_bot/templates/index.html"
